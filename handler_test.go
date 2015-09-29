@@ -65,10 +65,20 @@ func EqualSeries(s1 Series, s2 Series) bool {
 	return false
 }
 
+func ExistsID(ids []bson.ObjectId, id bson.ObjectId) bool {
+	for _, i := range ids {
+		if i == id {
+			return true
+		}
+	}
+
+	return false
+}
+
 func EqualUser(u1 User, u2 User) bool {
 	if u1.Name == u2.Name {
-		for i, s := range u1.Series {
-			if s != u2.Series[i] {
+		for _, s := range u1.Series {
+			if !ExistsID(u2.Series, s) {
 				return false
 			}
 		}
@@ -139,6 +149,44 @@ func Test_CRUDFuncSeries_OK(t *testing.T) {
 
 	updatedSeries := Series{
 		Title: "Narcos",
+		Image: Resource{
+			"kinox.to",
+			"http://kinox.to/Stream/Narcos.html",
+		},
+		Episodes: Resource{
+			"imdb.com",
+			"http://www.imdb.com/title/tt2707408",
+		},
+		Desc: Resource{
+			"imdb.com",
+			"http://www.imdb.com/title/tt2707408",
+		},
+		Portal: Resource{
+			"kinox.to",
+			"http://kinox.to/Stream/Narcos.html",
+		},
+	}
+
+	err = UpdateSeries(db, id, change)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err = ReadSeries(db, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !EqualSeries(updatedSeries, result) {
+		t.Fatal("Expect", updatedSeries, "was", result)
+	}
+
+	change = ChangeSeries{
+		Title: "True Detective",
+	}
+
+	updatedSeries = Series{
+		Title: "True Detective",
 		Image: Resource{
 			"kinox.to",
 			"http://kinox.to/Stream/Narcos.html",
@@ -268,7 +316,7 @@ func Test_ReadAllSeries_OK(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sList, err = ReadSeriesFromUser(db, user)
+	sList, err = ReadSeriesFromUser(db, user.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +405,7 @@ func Test_CRUDFuncUser_OK(t *testing.T) {
 
 	change := ChangeUser{
 		Name: "Lang Nase",
-		Series: AppendList{
+		Series: AppendIDItems{
 			sID2,
 		},
 	}
@@ -385,7 +433,7 @@ func Test_CRUDFuncUser_OK(t *testing.T) {
 	}
 
 	change = ChangeUser{
-		Series: RemoveList{
+		Series: RemoveIDItems{
 			sID1,
 		},
 	}

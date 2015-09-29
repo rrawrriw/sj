@@ -1,32 +1,31 @@
 package main
 
 import (
+	"errors"
+	"sort"
+
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
+const (
+	SeriesColl = "Series"
+	UserColl   = "User"
+)
+
 type (
 	Resource struct {
-		Name string
-		URL  string
+		Name string `bson:"Name"`
+		URL  string `bson:"URL"`
 	}
 
 	Series struct {
-		Title    string
-		Image    Resource
-		Episodes Resource
-		Desc     Resource
-		Portal   Resource
-	}
-
-	User struct {
-		Name   string
-		Series []bson.ObjectId
-	}
-
-	ChangeUser struct {
-		Name   string
-		Series interface{}
+		ID       bson.ObjectId `bson:"_id,omitempty"`
+		Title    string        `bson:"Title"`
+		Image    Resource      `bson:"Image"`
+		Episodes Resource      `bson:"Episodes"`
+		Desc     Resource      `bson:"Desc"`
+		Portal   Resource      `bson:"Portal"`
 	}
 
 	// In der Zukunft ist es  möglich das man zum Beispiel
@@ -45,55 +44,237 @@ type (
 		Portal   Resource
 	}
 
-	Episode struct {
-		SeriesID bson.ObjectId
-		Title    string
-		Session  int
-		Episode  int
-		Watched  bool
+	SeriesList []Series
+
+	User struct {
+		ID     bson.ObjectId   `bson:"_id,omitempty"`
+		Name   string          `bson:"Name"`
+		Series []bson.ObjectId `bson:"Series"`
 	}
 
-	AppendList []interface{}
-	RemoveList []interface{}
+	ChangeUser struct {
+		Name   string
+		Series interface{}
+	}
+
+	Episode struct {
+		ID       bson.ObjectId `bson:"_id,omitempty"`
+		SeriesID bson.ObjectId `bson:"SeriesID"`
+		Title    string        `bson:"Title"`
+		Session  int           `bson:"Session"`
+		Episode  int           `bson:"Episode"`
+		Watched  bool          `bson:"Watched"`
+	}
+
+	AppendIDItems []bson.ObjectId
+	RemoveIDItems []bson.ObjectId
 )
 
+// Define Sort List
+func (l SeriesList) Len() int {
+	return len(l)
+}
+
+func (l SeriesList) Less(x, y int) bool {
+	return l[x].Title < l[y].Title
+}
+
+func (l SeriesList) Swap(x, y int) {
+	l[x], l[y] = l[y], l[x]
+}
+
 func NewSeries(db *mgo.Database, series Series) (bson.ObjectId, error) {
-	return bson.ObjectId(""), nil
+	coll := db.C(SeriesColl)
+
+	id := bson.NewObjectId()
+	series.ID = id
+	err := coll.Insert(series)
+	if err != nil {
+		return bson.ObjectId(""), err
+	}
+
+	return id, nil
 }
 
 func ReadSeries(db *mgo.Database, id bson.ObjectId) (Series, error) {
-	return Series{}, nil
+	coll := db.C(SeriesColl)
+
+	series := Series{}
+
+	err := coll.FindId(id).One(&series)
+	if err != nil {
+		return Series{}, err
+	}
+
+	return series, nil
 }
 
 func ReadAllSeries(db *mgo.Database, sList []bson.ObjectId) ([]Series, error) {
-	return []Series{}, nil
+	coll := db.C(SeriesColl)
+
+	resultList := SeriesList{}
+
+	err := coll.Find(bson.M{
+		"_id": bson.M{
+			"$in": sList,
+		},
+	}).All(&resultList)
+	if err != nil {
+		return []Series{}, err
+	}
+	sort.Sort(resultList)
+
+	return resultList, nil
 }
 
 func UpdateSeries(db *mgo.Database, id bson.ObjectId, change ChangeSeries) error {
+	coll := db.C(SeriesColl)
+
+	fields := bson.M{
+		"Title":    change.Title,
+		"Image":    change.Image,
+		"Desc":     change.Desc,
+		"Episodes": change.Episodes,
+		"Portal":   change.Portal,
+	}
+
+	update := bson.M{
+		"$set": fields,
+	}
+
+	mgoChange := mgo.Change{
+		Update:    update,
+		ReturnNew: false,
+	}
+
+	changeInfo, err := coll.FindId(id).Apply(mgoChange, nil)
+	if err != nil {
+		return err
+	}
+
+	if changeInfo.Updated != 1 {
+		return errors.New("update error")
+	}
+
 	return nil
 }
 
 func RemoveSeries(db *mgo.Database, id bson.ObjectId) error {
+	coll := db.C(SeriesColl)
+
+	err := coll.RemoveId(id)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func NewUser(db *mgo.Database, user User) (bson.ObjectId, error) {
-	return bson.ObjectId(""), nil
+	coll := db.C(UserColl)
+
+	id := bson.NewObjectId()
+	user.ID = id
+
+	err := coll.Insert(user)
+	if err != nil {
+		return bson.ObjectId(""), nil
+	}
+
+	return id, nil
 }
 
 func ReadUser(db *mgo.Database, id bson.ObjectId) (User, error) {
-	return User{}, nil
+	coll := db.C(UserColl)
+
+	user := User{}
+
+	err := coll.FindId(id).One(&user)
+	if err != nil {
+		return User{}, err
+	}
+
+	return user, nil
 }
 
-func ReadSeriesFromUser(db *mgo.Database, user User) ([]Series, error) {
-	return []Series{}, nil
+func ReadSeriesFromUser(db *mgo.Database, name string) ([]Series, error) {
+	coll := db.C(UserColl)
+
+	user := User{}
+	err := coll.Find(bson.M{"Name": name}).One(&user)
+	if err != nil {
+		return []Series{}, err
+	}
+
+	sList, err := ReadAllSeries(db, user.Series)
+	if err != nil {
+		return []Series{}, err
+	}
+
+	return sList, nil
 }
 
 func UpdateUser(db *mgo.Database, id bson.ObjectId, change ChangeUser) error {
+	coll := db.C(UserColl)
+
+	update := bson.M{}
+	set := bson.M{}
+	push := bson.M{}
+	pull := bson.M{}
+
+	if change.Name != "" {
+		set["Name"] = change.Name
+	}
+
+	switch change.Series.(type) {
+	case AppendIDItems:
+		push["Series"] = bson.M{
+			"$each": change.Series.(AppendIDItems),
+		}
+	case RemoveIDItems:
+		pull["Series"] = bson.M{
+			"$in": change.Series.(RemoveIDItems),
+		}
+	case []bson.ObjectId:
+		set["Series"] = change.Series.([]bson.ObjectId)
+	}
+
+	if len(set) > 0 {
+		update["$set"] = set
+	}
+
+	if len(push) > 0 {
+		update["$push"] = push
+	}
+
+	if len(pull) > 0 {
+		update["$pull"] = pull
+	}
+
+	mgoChange := mgo.Change{
+		Update: update,
+	}
+
+	changeInfo, err := coll.FindId(id).Apply(mgoChange, nil)
+	if err != nil {
+		return err
+	}
+
+	if changeInfo.Updated != 1 {
+		errors.New("update error")
+	}
+
 	return nil
 }
 
 func RemoveUser(db *mgo.Database, id bson.ObjectId) error {
+	coll := db.C(UserColl)
+
+	err := coll.RemoveId(id)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
