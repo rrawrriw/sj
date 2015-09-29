@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	TestDBURL  = "mongodb://127.0.0.1:2701"
+	TestDBURL  = "mongodb://127.0.0.1:27017"
 	TestDBName = "testing-db"
 )
 
@@ -41,12 +41,38 @@ func EqualResource(r1 Resource, r2 Resource) bool {
 	return false
 }
 
+func EqualEpisode(e1 Episode, e2 Episode) bool {
+	if e1.Episode == e2.Episode &&
+		e1.SeriesID == e2.SeriesID &&
+		e1.Session == e2.Session &&
+		e1.Title == e2.Title &&
+		e1.Watched == e1.Watched {
+		return true
+	}
+
+	return false
+}
+
 func EqualSeries(s1 Series, s2 Series) bool {
-	if s1.Title != s2.Title &&
-		!EqualResource(s1.Image, s2.Image) &&
-		!EqualResource(s1.Episodes, s2.Episodes) &&
-		!EqualResource(s1.Desc, s2.Desc) &&
-		!EqualResource(s1.Portal, s2.Portal) {
+	if s1.Title == s2.Title &&
+		EqualResource(s1.Image, s2.Image) &&
+		EqualResource(s1.Episodes, s2.Episodes) &&
+		EqualResource(s1.Desc, s2.Desc) &&
+		EqualResource(s1.Portal, s2.Portal) {
+		return true
+	}
+
+	return false
+}
+
+func EqualUser(u1 User, u2 User) bool {
+	if u1.Name == u2.Name {
+		for i, s := range u1.Series {
+			if s != u2.Series[i] {
+				return false
+			}
+		}
+
 		return true
 	}
 
@@ -150,7 +176,7 @@ func Test_CRUDFuncSeries_OK(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result, err = ReadSeries(db, id)
+	_, err = ReadSeries(db, id)
 	if err != mgo.ErrNotFound {
 		t.Fatal(err)
 	}
@@ -158,6 +184,238 @@ func Test_CRUDFuncSeries_OK(t *testing.T) {
 }
 
 func Test_ReadAllSeries_OK(t *testing.T) {
+	session, db := DialTest(t)
+	defer CleanTestDB(session, db, t)
+
+	series1 := Series{
+		Title: "Narcos",
+		Image: Resource{
+			"kinox.to",
+			"http://kinox.to/Stream/Narcos.html",
+		},
+		Episodes: Resource{
+			"imdb.com",
+			"http://www.imdb.com/title/tt2707408",
+		},
+		Desc: Resource{
+			"imdb.com",
+			"http://www.imdb.com/title/tt2707408",
+		},
+		Portal: Resource{
+			"kinox.to",
+			"http://kinox.to/Stream/Narcos.html",
+		},
+	}
+
+	id1, err := NewSeries(db, series1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	series2 := Series{
+		Title: "Mr. Robot",
+		Image: Resource{
+			"imdb.com",
+			"http://www.imdb.com/title/tt4158110/",
+		},
+		Episodes: Resource{
+			"serienjunkie.de",
+			"http://www.serienjunkies.de/mr-robot/",
+		},
+		Desc: Resource{
+			"serienjunkie.de",
+			"http://www.serienjunkies.de/mr-robot/",
+		},
+		Portal: Resource{
+			"kinox.to",
+			"http://kinox.to/Stream/Mr-Robot.html",
+		},
+	}
+
+	id2, err := NewSeries(db, series2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ids := []bson.ObjectId{
+		id1,
+		id2,
+	}
+
+	sList, err := ReadAllSeries(db, ids)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !EqualSeries(series2, sList[0]) {
+		t.Fatal("Expect", series2, "was", sList[0])
+	}
+
+	if !EqualSeries(series1, sList[1]) {
+		t.Fatal("Expect", series1, "was", sList[1])
+	}
+
+	user := User{
+		Name: "pimmel",
+		Series: []bson.ObjectId{
+			id1,
+			id2,
+		},
+	}
+
+	_, err = NewUser(db, user)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sList, err = ReadSeriesFromUser(db, user)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !EqualSeries(series2, sList[0]) {
+		t.Fatal("Expect", series2, "was", sList[0])
+	}
+
+	if !EqualSeries(series1, sList[1]) {
+		t.Fatal("Expect", series1, "was", sList[1])
+	}
+
+}
+
+func Test_CRUDFuncUser_OK(t *testing.T) {
+	session, db := DialTest(t)
+	defer CleanTestDB(session, db, t)
+
+	series1 := Series{
+		Title: "Narcos",
+		Image: Resource{
+			"kinox.to",
+			"http://kinox.to/Stream/Narcos.html",
+		},
+		Episodes: Resource{
+			"imdb.com",
+			"http://www.imdb.com/title/tt2707408",
+		},
+		Desc: Resource{
+			"imdb.com",
+			"http://www.imdb.com/title/tt2707408",
+		},
+		Portal: Resource{
+			"kinox.to",
+			"http://kinox.to/Stream/Narcos.html",
+		},
+	}
+
+	sID1, err := NewSeries(db, series1)
+
+	user := User{
+		Name: "Nase",
+		Series: []bson.ObjectId{
+			sID1,
+		},
+	}
+
+	uID, err := NewUser(db, user)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := ReadUser(db, uID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !EqualUser(user, result) {
+		t.Fatal("Expect", user, "was", result)
+	}
+
+	series2 := Series{
+		Title: "Mr. Robot",
+		Image: Resource{
+			"imdb.com",
+			"http://www.imdb.com/title/tt4158110/",
+		},
+		Episodes: Resource{
+			"serienjunkie.de",
+			"http://www.serienjunkies.de/mr-robot/",
+		},
+		Desc: Resource{
+			"serienjunkie.de",
+			"http://www.serienjunkies.de/mr-robot/",
+		},
+		Portal: Resource{
+			"kinox.to",
+			"http://kinox.to/Stream/Mr-Robot.html",
+		},
+	}
+
+	sID2, err := NewSeries(db, series2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	change := ChangeUser{
+		Name: "Lang Nase",
+		Series: AppendList{
+			sID2,
+		},
+	}
+
+	err = UpdateUser(db, uID, change)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updatedUser := User{
+		Name: "Lang Nase",
+		Series: []bson.ObjectId{
+			sID2,
+			sID1,
+		},
+	}
+
+	result, err = ReadUser(db, uID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !EqualUser(updatedUser, result) {
+		t.Fatal("Expect", updatedUser, "was", result)
+	}
+
+	change = ChangeUser{
+		Series: RemoveList{
+			sID1,
+		},
+	}
+
+	err = UpdateUser(db, uID, change)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updatedUser = User{
+		Name: "Lang Nase",
+		Series: []bson.ObjectId{
+			sID2,
+		},
+	}
+
+	if !EqualUser(updatedUser, result) {
+		t.Fatal("Expect", updatedUser, "was", result)
+	}
+
+	err = RemoveUser(db, uID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = ReadUser(db, uID)
+	if err != mgo.ErrNotFound {
+		t.Fatal(err)
+	}
+
 }
 
 func Test_CRUDFuncEpisode_OK(t *testing.T) {
@@ -171,7 +429,7 @@ func Test_CRUDFuncEpisode_OK(t *testing.T) {
 		Session:  1,
 		Episode:  1,
 		Title:    "Title",
-		watched:  false,
+		Watched:  false,
 	}
 
 	id, err := NewEpisode(db, episode)
@@ -188,7 +446,7 @@ func Test_CRUDFuncEpisode_OK(t *testing.T) {
 		t.Fatal("Expect", episode, "was", result)
 	}
 
-	err := WatchEpisode(db, seriesID, episode.Session, episode.Episode)
+	err = WatchEpisode(db, seriesID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +459,7 @@ func Test_CRUDFuncEpisode_OK(t *testing.T) {
 		Watched:  true,
 	}
 
-	result, err := ReadEpisode(db, id)
+	result, err = ReadEpisode(db, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +476,7 @@ func Test_CRUDFuncEpisode_OK(t *testing.T) {
 		Watched:  true,
 	}
 
-	id2, err := NewEpisode(db, episode2)
+	_, err = NewEpisode(db, episode2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,12 +486,12 @@ func Test_CRUDFuncEpisode_OK(t *testing.T) {
 		episode2,
 	}
 
-	allWatchedEpisodes, err := ReadWatchedEpisodes(db)
+	allWatchedEpisodes, err := ReadWatchedEpisodes(db, seriesID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for i, e := range episodes {
+	for i, e := range watchedEpisodes {
 		if !EqualEpisode(e, allWatchedEpisodes[i]) {
 			t.Fatal("Expect", e, "was", allWatchedEpisodes[i])
 		}
@@ -241,5 +499,47 @@ func Test_CRUDFuncEpisode_OK(t *testing.T) {
 
 }
 
-func Test_NewBatch_OK(t *testing.T) {
+func Test_NewEpisodeBatch_OK(t *testing.T) {
+	session, db := DialTest(t)
+	defer CleanTestDB(session, db, t)
+
+	seriesID := bson.ObjectId("123")
+	episode := Episode{
+		SeriesID: seriesID,
+		Session:  1,
+		Episode:  1,
+		Title:    "Title",
+		Watched:  false,
+	}
+
+	episode2 := Episode{
+		SeriesID: seriesID,
+		Session:  1,
+		Episode:  2,
+		Title:    "Title 2",
+		Watched:  true,
+	}
+
+	episodes := []Episode{
+		episode,
+		episode2,
+	}
+	_, err := NewEpisodeBatch(db, episodes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	eResult, err := ReadEpisodes(db, seriesID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !EqualEpisode(episode, eResult[0]) {
+		t.Fatal("Expect", episode, "was", eResult[0])
+	}
+
+	if !EqualEpisode(episode2, eResult[1]) {
+		t.Fatal("Expect", episode2, "was", eResult[2])
+	}
+
 }
