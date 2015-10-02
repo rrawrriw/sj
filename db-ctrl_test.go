@@ -7,32 +7,6 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-const (
-	TestDBURL  = "mongodb://127.0.0.1:27017"
-	TestDBName = "testing-db"
-)
-
-func DialTest(t *testing.T) (*mgo.Session, *mgo.Database) {
-	session, err := mgo.Dial(TestDBURL)
-	if err != nil {
-		t.Fatal(err)
-
-	}
-
-	db := session.DB(TestDBName)
-
-	return session, db
-
-}
-
-func CleanTestDB(s *mgo.Session, db *mgo.Database, t *testing.T) {
-	err := db.DropDatabase()
-	if err != nil {
-		t.Fatal(err)
-	}
-	s.Close()
-}
-
 func EqualResource(r1 Resource, r2 Resource) bool {
 	if r1.Name == r2.Name && r1.URL == r2.URL {
 		return true
@@ -90,7 +64,7 @@ func EqualUser(u1 User, u2 User) bool {
 }
 
 func Test_CRUDFuncSeries_OK(t *testing.T) {
-	session, db := DialTest(t)
+	session, db := DialTestDB(t)
 	defer CleanTestDB(session, db, t)
 
 	series := Series{
@@ -232,7 +206,7 @@ func Test_CRUDFuncSeries_OK(t *testing.T) {
 }
 
 func Test_ReadAllSeries_OK(t *testing.T) {
-	session, db := DialTest(t)
+	session, db := DialTestDB(t)
 	defer CleanTestDB(session, db, t)
 
 	series1 := Series{
@@ -332,7 +306,7 @@ func Test_ReadAllSeries_OK(t *testing.T) {
 }
 
 func Test_CRUDFuncUser_OK(t *testing.T) {
-	session, db := DialTest(t)
+	session, db := DialTestDB(t)
 	defer CleanTestDB(session, db, t)
 
 	series1 := Series{
@@ -467,7 +441,7 @@ func Test_CRUDFuncUser_OK(t *testing.T) {
 }
 
 func Test_CRUDFuncEpisode_OK(t *testing.T) {
-	session, db := DialTest(t)
+	session, db := DialTestDB(t)
 	defer CleanTestDB(session, db, t)
 
 	seriesID := bson.NewObjectId()
@@ -548,7 +522,7 @@ func Test_CRUDFuncEpisode_OK(t *testing.T) {
 }
 
 func Test_NewEpisodeBatch_OK(t *testing.T) {
-	session, db := DialTest(t)
+	session, db := DialTestDB(t)
 	defer CleanTestDB(session, db, t)
 
 	seriesID := bson.NewObjectId()
