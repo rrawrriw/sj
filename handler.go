@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	SeriesColl = "Series"
-	UserColl   = "User"
+	SeriesColl  = "Series"
+	UserColl    = "Users"
+	EpisodeColl = "Episodes"
 )
 
 type (
@@ -66,6 +67,8 @@ type (
 		Watched  bool          `bson:"Watched"`
 	}
 
+	Episodes []Episode
+
 	AppendIDItems []bson.ObjectId
 	RemoveIDItems []bson.ObjectId
 )
@@ -80,6 +83,32 @@ func (l SeriesList) Less(x, y int) bool {
 }
 
 func (l SeriesList) Swap(x, y int) {
+	l[x], l[y] = l[y], l[x]
+}
+
+func (l Episodes) Len() int {
+	return len(l)
+}
+
+func (l Episodes) Less(x, y int) bool {
+	if l[x].Session < l[y].Session {
+		return true
+	}
+
+	if l[x].Session == l[y].Session {
+		if l[x].Episode < l[y].Session {
+			return true
+		} else if l[x].Episode > l[y].Session {
+			return false
+		} else {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (l Episodes) Swap(x, y int) {
 	l[x], l[y] = l[y], l[x]
 }
 
@@ -279,7 +308,17 @@ func RemoveUser(db *mgo.Database, id bson.ObjectId) error {
 }
 
 func NewEpisode(db *mgo.Database, episode Episode) (bson.ObjectId, error) {
-	return bson.ObjectId(""), nil
+	coll := db.C(EpisodeColl)
+
+	id := bson.NewObjectId()
+	episode.ID = id
+
+	err := coll.Insert(episode)
+	if err != nil {
+		return bson.ObjectId(""), err
+	}
+
+	return id, nil
 }
 
 func NewEpisodeBatch(db *mgo.Database, episodes []Episode) ([]bson.ObjectId, error) {
@@ -287,7 +326,15 @@ func NewEpisodeBatch(db *mgo.Database, episodes []Episode) ([]bson.ObjectId, err
 }
 
 func ReadEpisode(db *mgo.Database, id bson.ObjectId) (Episode, error) {
-	return Episode{}, nil
+	coll := db.C(EpisodeColl)
+
+	episode := Episode{}
+	err := coll.FindId(id).One(&episode)
+	if err != nil {
+		return Episode{}, err
+	}
+
+	return episode, nil
 }
 
 func ReadEpisodes(db *mgo.Database, id bson.ObjectId) ([]Episode, error) {
