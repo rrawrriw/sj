@@ -156,19 +156,41 @@ func ReadAllSeries(db *mgo.Database, sList []bson.ObjectId) ([]Series, error) {
 	return resultList, nil
 }
 
+func ResourceEmpty(r Resource) bool {
+	if r.Name == "" && r.URL == "" {
+		return true
+	}
+
+	return false
+}
+
 func UpdateSeries(db *mgo.Database, id bson.ObjectId, change ChangeSeries) error {
 	coll := db.C(SeriesColl)
 
-	fields := bson.M{
-		"Title":    change.Title,
-		"Image":    change.Image,
-		"Desc":     change.Desc,
-		"Episodes": change.Episodes,
-		"Portal":   change.Portal,
+	set := bson.M{}
+
+	if change.Title != "" {
+		set["Title"] = change.Title
+	}
+
+	if !ResourceEmpty(change.Image) {
+		set["Image"] = change.Image
+	}
+
+	if !ResourceEmpty(change.Desc) {
+		set["Desc"] = change.Desc
+	}
+
+	if !ResourceEmpty(change.Episodes) {
+		set["Episodes"] = change.Episodes
+	}
+
+	if !ResourceEmpty(change.Portal) {
+		set["Portal"] = change.Portal
 	}
 
 	update := bson.M{
-		"$set": fields,
+		"$set": set,
 	}
 
 	mgoChange := mgo.Change{
@@ -322,7 +344,23 @@ func NewEpisode(db *mgo.Database, episode Episode) (bson.ObjectId, error) {
 }
 
 func NewEpisodeBatch(db *mgo.Database, episodes []Episode) ([]bson.ObjectId, error) {
-	return []bson.ObjectId{}, nil
+	coll := db.C(EpisodeColl)
+
+	ids := []bson.ObjectId{}
+	inserts := []interface{}{}
+	for _, e := range episodes {
+		id := bson.NewObjectId()
+		e.ID = id
+		ids = append(ids, id)
+		inserts = append(inserts, e)
+	}
+
+	err := coll.Insert(inserts...)
+	if err != nil {
+		return []bson.ObjectId{}, err
+	}
+
+	return ids, nil
 }
 
 func ReadEpisode(db *mgo.Database, id bson.ObjectId) (Episode, error) {
@@ -338,13 +376,61 @@ func ReadEpisode(db *mgo.Database, id bson.ObjectId) (Episode, error) {
 }
 
 func ReadEpisodes(db *mgo.Database, id bson.ObjectId) ([]Episode, error) {
-	return []Episode{}, nil
+	coll := db.C(EpisodeColl)
+
+	result := []Episode{}
+	query := bson.M{
+		"SeriesID": id,
+	}
+	find := coll.Find(query)
+	err := find.All(&result)
+	if err != nil {
+		return []Episode{}, err
+	}
+
+	return result, nil
 }
 
 func WatchEpisode(db *mgo.Database, id bson.ObjectId) error {
+	coll := db.C(EpisodeColl)
+
+	update := bson.M{
+		"$set": bson.M{
+			"Watched": true,
+		},
+	}
+	mgoChange := mgo.Change{
+		Update:    update,
+		ReturnNew: false,
+	}
+
+	changeInfo, err := coll.FindId(id).Apply(mgoChange, nil)
+	if err != nil {
+		return err
+	}
+
+	if changeInfo.Updated != 1 {
+		return errors.New("update error")
+	}
+
 	return nil
 }
 
-func ReadWatchedEpisodes(db *mgo.Database, id bson.ObjectId) ([]Episode, error) {
-	return []Episode{}, nil
+func ReadWatchedEpisodes(db *mgo.Database, id bson.ObjectId) (Episodes, error) {
+	coll := db.C(EpisodeColl)
+
+	result := Episodes{}
+	query := bson.M{
+		"SeriesID": id,
+		"Watched":  true,
+	}
+	find := coll.Find(query)
+	err := find.All(&result)
+	if err != nil {
+		return Episodes{}, err
+	}
+
+	sort.Sort(result)
+
+	return result, nil
 }

@@ -494,7 +494,7 @@ func Test_CRUDFuncEpisode_OK(t *testing.T) {
 		t.Fatal("Expect", episode, "was", result)
 	}
 
-	err = WatchEpisode(db, seriesID)
+	err = WatchEpisode(db, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -551,7 +551,7 @@ func Test_NewEpisodeBatch_OK(t *testing.T) {
 	session, db := DialTest(t)
 	defer CleanTestDB(session, db, t)
 
-	seriesID := bson.ObjectId("123")
+	seriesID := bson.NewObjectId()
 	episode := Episode{
 		SeriesID: seriesID,
 		Session:  1,
