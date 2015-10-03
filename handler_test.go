@@ -326,3 +326,27 @@ func Test_POST_Series_OK(t *testing.T) {
 		t.Fatal("Expect", expectResult, "was", resp.Body)
 	}
 }
+
+func Test_ParseNewSeriesRequest_FailMissingFields(t *testing.T) {
+	data := `
+	{
+		"Data": {
+			"Title": "Title"
+		}
+	}`
+
+	body := bytes.NewReader([]byte(data))
+	req, err := http.NewRequest("POST", "/", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ginCtx := gin.Context{}
+	ginCtx.Request = req
+
+	_, err = ParseNewSeriesRequest(&ginCtx)
+	expect := NewMissingFieldError("Image")
+	if err.Error() != expect.Error() {
+		t.Fatal("Expect", expect, "was", err)
+	}
+}

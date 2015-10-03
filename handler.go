@@ -15,6 +15,10 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
+var (
+	RequestError = errors.New("Request Error")
+)
+
 type (
 	Specs struct {
 		DBName string
@@ -100,31 +104,36 @@ func NewFailResponse(err error) FailResponse {
 	return resp
 }
 
-func ExistsFields(s map[string]interface{}, f []string) bool {
+func NewMissingFieldError(field string) error {
+	msg := fmt.Sprintf("%v is missing", field)
+	return errors.New(msg)
+}
+
+func ExistsFields(s map[string]interface{}, f []string) error {
 	for _, v := range f {
 		_, ok := s[v]
 		if !ok {
-			return false
+			return NewMissingFieldError(v)
 		}
 	}
 
-	return true
+	return nil
 }
 
-func ExportResource(s map[string]interface{}, key string) (Resource, bool) {
+func ExportResource(s map[string]interface{}, key string) (Resource, error) {
 	v, ok := s[key].(map[string]interface{})
 	if !ok {
-		return Resource{}, false
+		return Resource{}, NewMissingFieldError(key)
 	}
 
 	name, ok := v["Name"].(string)
 	if !ok {
-		return Resource{}, false
+		return Resource{}, NewMissingFieldError("Name")
 	}
 
 	url, ok := v["URL"].(string)
 	if !ok {
-		return Resource{}, false
+		return Resource{}, NewMissingFieldError("URL")
 	}
 
 	r := Resource{
@@ -132,13 +141,11 @@ func ExportResource(s map[string]interface{}, key string) (Resource, bool) {
 		URL:  url,
 	}
 
-	return r, true
+	return r, nil
 
 }
 
-func ParseSeriesRequest(c *gin.Context) (Series, error) {
-	reqErr := errors.New("Request error")
-
+func ParseNewSeriesRequest(c *gin.Context) (Series, error) {
 	buf := bytes.NewBuffer([]byte{})
 	_, err := buf.ReadFrom(c.Request.Body)
 
@@ -150,12 +157,12 @@ func ParseSeriesRequest(c *gin.Context) (Series, error) {
 
 	data, ok := req.Data.(interface{})
 	if !ok {
-		return Series{}, reqErr
+		return Series{}, RequestError
 	}
 
 	m, ok := data.(map[string]interface{})
 	if !ok {
-		return Series{}, reqErr
+		return Series{}, RequestError
 	}
 
 	fields := []string{
@@ -165,14 +172,14 @@ func ParseSeriesRequest(c *gin.Context) (Series, error) {
 		"Episodes",
 		"Portal",
 	}
-	ok = ExistsFields(m, fields)
-	if !ok {
-		return Series{}, reqErr
+	err = ExistsFields(m, fields)
+	if err != nil {
+		return Series{}, err
 	}
 
 	title, ok := m["Title"].(string)
 	if !ok {
-		return Series{}, errors.New("Title is missing")
+		return Series{}, NewMissingFieldError("Title")
 	}
 
 	resources := map[string]Resource{}
@@ -183,10 +190,9 @@ func ParseSeriesRequest(c *gin.Context) (Series, error) {
 		"Portal",
 	}
 	for _, key := range resourceNames {
-		v, ok := ExportResource(m, key)
-		if !ok {
-			errMsg := fmt.Sprintf("%v is missing", key)
-			return Series{}, errors.New(errMsg)
+		v, err := ExportResource(m, key)
+		if err != nil {
+			return Series{}, err
 		}
 		resources[key] = v
 	}
@@ -239,7 +245,7 @@ func EmptySeries(s Series) bool {
 }
 
 func NewSeriesHandler(c *gin.Context, app AppContext) error {
-	series, err := ParseSeriesRequest(c)
+	series, err := ParseNewSeriesRequest(c)
 	if err != nil {
 		return err
 	}
