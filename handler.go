@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -29,6 +31,10 @@ type (
 		Err    string
 	}
 
+	JSONRequest struct {
+		Data interface{}
+	}
+
 	AppContext interface {
 		DB() *mgo.Database
 	}
@@ -40,6 +46,10 @@ type (
 	}
 
 	AppHandler func(*gin.Context, AppContext) error
+
+	IDData struct {
+		ID string
+	}
 )
 
 func (app AppCtx) DB() *mgo.Database {
@@ -90,6 +100,166 @@ func NewFailResponse(err error) FailResponse {
 	return resp
 }
 
+func ExistsFields(s map[string]interface{}, f []string) bool {
+	for _, v := range f {
+		_, ok := s[v]
+		if !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+func ExportResource(s map[string]interface{}, key string) (Resource, bool) {
+	v, ok := s[key].(map[string]interface{})
+	if !ok {
+		return Resource{}, false
+	}
+
+	name, ok := v["Name"].(string)
+	if !ok {
+		return Resource{}, false
+	}
+
+	url, ok := v["URL"].(string)
+	if !ok {
+		return Resource{}, false
+	}
+
+	r := Resource{
+		Name: name,
+		URL:  url,
+	}
+
+	return r, true
+
+}
+
+func ParseSeriesRequest(c *gin.Context) (Series, error) {
+	reqErr := errors.New("Request error")
+
+	buf := bytes.NewBuffer([]byte{})
+	_, err := buf.ReadFrom(c.Request.Body)
+
+	req := JSONRequest{}
+	err = json.Unmarshal(buf.Bytes(), &req)
+	if err != nil {
+		return Series{}, err
+	}
+
+	data, ok := req.Data.(interface{})
+	if !ok {
+		return Series{}, reqErr
+	}
+
+	m, ok := data.(map[string]interface{})
+	if !ok {
+		return Series{}, reqErr
+	}
+
+	fields := []string{
+		"Title",
+		"Image",
+		"Desc",
+		"Episodes",
+		"Portal",
+	}
+	ok = ExistsFields(m, fields)
+	if !ok {
+		return Series{}, reqErr
+	}
+
+	title, ok := m["Title"].(string)
+	if !ok {
+		return Series{}, errors.New("Title is missing")
+	}
+
+	resources := map[string]Resource{}
+	resourceNames := []string{
+		"Image",
+		"Desc",
+		"Episodes",
+		"Portal",
+	}
+	for _, key := range resourceNames {
+		v, ok := ExportResource(m, key)
+		if !ok {
+			errMsg := fmt.Sprintf("%v is missing", key)
+			return Series{}, errors.New(errMsg)
+		}
+		resources[key] = v
+	}
+
+	series := Series{
+		Title:    title,
+		Image:    resources["Image"],
+		Desc:     resources["Desc"],
+		Episodes: resources["Episodes"],
+		Portal:   resources["Portal"],
+	}
+
+	return series, nil
+}
+
+func ContextErrorDeco(h AppHandler, app AppContext) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		err := h(c, app)
+		if err != nil {
+			resp := NewFailResponse(err)
+			c.JSON(http.StatusOK, resp)
+			return
+		}
+	}
+}
+
+func NewAppHandler(h AppHandler, app AppContext) gin.HandlerFunc {
+	wrap := ContextErrorDeco(h, app)
+	return wrap
+}
+
+func EmptyResource(r Resource) bool {
+	if r.Name == "" && r.URL == "" {
+		return true
+	}
+
+	return false
+}
+
+func EmptySeries(s Series) bool {
+	if s.Title == "" &&
+		EmptyResource(s.Image) &&
+		EmptyResource(s.Desc) &&
+		EmptyResource(s.Episodes) &&
+		EmptyResource(s.Portal) {
+		return true
+	}
+
+	return false
+}
+
+func NewSeriesHandler(c *gin.Context, app AppContext) error {
+	series, err := ParseSeriesRequest(c)
+	if err != nil {
+		return err
+	}
+
+	if EmptySeries(series) {
+		return errors.New("Wrong request")
+	}
+
+	id, err := NewSeries(app.DB(), series)
+	if err != nil {
+		return err
+	}
+
+	data := IDData{
+		ID: string(id.Hex()),
+	}
+	c.JSON(http.StatusOK, NewSuccessResponse(data))
+	return nil
+}
+
 func ReadSeriesOfUserHandler(c *gin.Context, app AppContext) error {
 	tmp, err := c.Get("Session")
 	if err != nil {
@@ -117,20 +287,4 @@ func ReadSeriesOfUserHandler(c *gin.Context, app AppContext) error {
 	c.JSON(http.StatusOK, resp)
 
 	return nil
-}
-
-func ContextErrorDeco(h AppHandler, app AppContext) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		err := h(c, app)
-		if err != nil {
-			resp := NewFailResponse(err)
-			c.JSON(http.StatusOK, resp)
-			return
-		}
-	}
-}
-
-func NewAppHandler(h AppHandler, app AppContext) gin.HandlerFunc {
-	wrap := ContextErrorDeco(h, app)
-	return wrap
 }

@@ -208,6 +208,20 @@ func EqualSeriesList(r1, r2 SuccessResponse) bool {
 	return true
 }
 
+func ExistsIDField(r1, r2 SuccessResponse) bool {
+	id2, ok := r2.Data.(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	_, ok = id2["ID"]
+	if !ok {
+		return false
+	}
+
+	return true
+}
+
 func NewTestApp(t *testing.T) AppCtx {
 	s, _ := DialTestDB(t)
 	specs := Specs{
@@ -256,4 +270,59 @@ func Test_GET_SeriesOfUser_OK(t *testing.T) {
 		t.Fatal("Expect", expectResult, "was", resp.Body)
 	}
 
+}
+
+func Test_POST_Series_OK(t *testing.T) {
+	app := NewTestApp(t)
+	db := app.DB()
+	defer CleanTestDB(app.MgoSession, db, t)
+
+	_, session, _ := NewTestDBEnv(t, db)
+
+	auth := aauth.AngularAuth(db, TestSessionsColl)
+
+	body := `
+	{
+		"Data": {
+			"Title": "Elementary",
+			"Image": {
+				"Name": "kinox.to",
+				"URL": "http://kinox.to/1"
+			},
+			"Desc": {
+				"Name": "kinox.to",
+				"URL": "http://kinox.to/1"
+			},
+			"Episodes": {
+				"Name": "kinox.to",
+				"URL": "http://kinox.to/1"
+			},
+			"Portal": {
+				"Name": "kinox.to",
+				"URL": "http://kinox.to/1"
+			}
+		}
+	}`
+
+	handler := gin.New()
+	req := TestRequest{
+		Body:    body,
+		Header:  http.Header{},
+		Handler: handler,
+	}
+
+	h := NewAppHandler(NewSeriesHandler, app)
+	handler.POST("/", auth, h)
+
+	resp := req.SendWithToken("POST", "/", session.Token)
+
+	if resp.Code != http.StatusOK {
+		t.Fatal("Expect", http.StatusOK, "was", resp.Code)
+	}
+
+	expectResult := NewSuccessResponse(nil)
+	r := EqualSuccessResponse(expectResult, resp.Body, ExistsIDField)
+	if !r {
+		t.Fatal("Expect", expectResult, "was", resp.Body)
+	}
 }
