@@ -285,12 +285,12 @@ func Test_ReadAllSeries_OK(t *testing.T) {
 		},
 	}
 
-	_, err = NewUser(db, user)
+	uID, err := NewUser(db, user)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	sList, err = ReadSeriesFromUser(db, user.Name)
+	sList, err = ReadSeriesOfUser(db, uID)
 	if err != nil {
 		t.Fatal(err)
 	}

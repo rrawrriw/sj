@@ -248,11 +248,11 @@ func ReadUser(db *mgo.Database, id bson.ObjectId) (User, error) {
 	return user, nil
 }
 
-func ReadSeriesFromUser(db *mgo.Database, name string) ([]Series, error) {
+func ReadSeriesOfUser(db *mgo.Database, id bson.ObjectId) ([]Series, error) {
 	coll := db.C(UserColl)
 
 	user := User{}
-	err := coll.Find(bson.M{"Name": name}).One(&user)
+	err := coll.FindId(id).One(&user)
 	if err != nil {
 		return []Series{}, err
 	}
