@@ -7,6 +7,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	AppNamePrefix = "SJ"
+)
+
 func main() {
 	host := os.Getenv("SJ_HOST")
 	port := os.Getenv("SJ_PORT")
