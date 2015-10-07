@@ -1,4 +1,4 @@
-package main
+package sj
 
 import (
 	"testing"
