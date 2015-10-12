@@ -65,9 +65,9 @@ func (app AppCtx) DB() *mgo.Database {
 	return sCopy.DB(app.Specs.DBName)
 }
 
-func NewApp() (AppCtx, error) {
+func NewApp(appNamePrefix string) (AppCtx, error) {
 	specs := Specs{}
-	err := envconfig.Process(AppNamePrefix, &specs)
+	err := envconfig.Process(appNamePrefix, &specs)
 	if err != nil {
 		return AppCtx{}, err
 	}
