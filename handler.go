@@ -84,6 +84,7 @@ func NewApp(appNamePrefix string) (AppCtx, error) {
 	ctx := AppCtx{
 		MgoSession: session,
 		Specs:      specs,
+		Mutex:      &sync.Mutex{},
 	}
 
 	return ctx, nil
