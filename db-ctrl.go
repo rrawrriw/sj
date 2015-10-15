@@ -120,8 +120,8 @@ func (l Episodes) Swap(x, y int) {
 }
 
 // Setup API for SiginHandler function
-func (u User) ID() bson.ObjectId {
-	return u.Id
+func (u User) ID() string {
+	return u.Id.Hex()
 }
 
 func (u User) Password() string {

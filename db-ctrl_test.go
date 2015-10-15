@@ -333,6 +333,7 @@ func Test_CRUDFuncUser_OK(t *testing.T) {
 
 	user := User{
 		Name: "Nase",
+		Pass: "Loch",
 		Series: []bson.ObjectId{
 			sID1,
 		},
@@ -388,6 +389,7 @@ func Test_CRUDFuncUser_OK(t *testing.T) {
 
 	change := ChangeUser{
 		Name: "Lang Nase",
+		Pass: "kleinesLoch",
 		Series: AppendIDItems{
 			sID2,
 		},
@@ -400,6 +402,7 @@ func Test_CRUDFuncUser_OK(t *testing.T) {
 
 	updatedUser := User{
 		Name: "Lang Nase",
+		Pass: "kleinesLoch",
 		Series: []bson.ObjectId{
 			sID2,
 			sID1,
@@ -428,6 +431,7 @@ func Test_CRUDFuncUser_OK(t *testing.T) {
 
 	updatedUser = User{
 		Name: "Lang Nase",
+		Pass: "kleinesLoch",
 		Series: []bson.ObjectId{
 			sID2,
 		},
