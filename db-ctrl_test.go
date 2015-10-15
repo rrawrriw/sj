@@ -352,6 +352,15 @@ func Test_CRUDFuncUser_OK(t *testing.T) {
 		t.Fatal("Expect", user, "was", result)
 	}
 
+	result, err = FindUser(db, user.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !EqualUser(user, result) {
+		t.Fatal("Expect", user, "was", result)
+	}
+
 	series2 := Series{
 		Title: "Mr. Robot",
 		Image: Resource{

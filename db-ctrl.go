@@ -248,6 +248,20 @@ func ReadUser(db *mgo.Database, id bson.ObjectId) (User, error) {
 	return user, nil
 }
 
+func FindUser(db *mgo.Database, name string) (User, error) {
+	coll := db.C(UserColl)
+
+	user := User{}
+
+	query := bson.M{"Name": name}
+	err := coll.Find(query).One(&user)
+	if err != nil {
+		return User{}, err
+	}
+
+	return user, nil
+}
+
 func ReadSeriesOfUser(db *mgo.Database, id bson.ObjectId) ([]Series, error) {
 	coll := db.C(UserColl)
 
