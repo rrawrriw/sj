@@ -48,8 +48,14 @@ type (
 	SeriesList []Series
 
 	User struct {
-		ID     bson.ObjectId   `bson:"_id,omitempty"`
+		// Noraml ID konflikt mit AngularSingIn API
+		// Anfangsbuchstaben müssen groß sein da ansonst
+		// die mgo Funktionen nicht mehr funktionieren
+		// diese benötigen eine Öffentliche API sprich
+		// Großbuchstaben
+		Id     bson.ObjectId   `bson:"_id,omitempty"`
 		Name   string          `bson:"Name"`
+		Pass   string          `bson:"Password"`
 		Series []bson.ObjectId `bson:"Series"`
 	}
 
@@ -110,6 +116,15 @@ func (l Episodes) Less(x, y int) bool {
 
 func (l Episodes) Swap(x, y int) {
 	l[x], l[y] = l[y], l[x]
+}
+
+// Setup API for SiginHandler function
+func (u User) ID() bson.ObjectId {
+	return u.Id
+}
+
+func (u User) Password() string {
+	return u.Pass
 }
 
 func NewSeries(db *mgo.Database, series Series) (bson.ObjectId, error) {
@@ -225,7 +240,7 @@ func NewUser(db *mgo.Database, user User) (bson.ObjectId, error) {
 	coll := db.C(UserColl)
 
 	id := bson.NewObjectId()
-	user.ID = id
+	user.Id = id
 
 	err := coll.Insert(user)
 	if err != nil {

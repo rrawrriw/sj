@@ -104,7 +104,7 @@ func NewTestDBEnv(t *testing.T, db *mgo.Database) (User, aauth.Session, SeriesLi
 	if err != nil {
 		t.Fatal(err)
 	}
-	user.ID = uID
+	user.Id = uID
 
 	userToken := "123"
 	session := NewTestSession(string(uID.Hex()), userToken, db, t)

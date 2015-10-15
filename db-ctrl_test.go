@@ -50,7 +50,7 @@ func ExistsID(ids []bson.ObjectId, id bson.ObjectId) bool {
 }
 
 func EqualUser(u1 User, u2 User) bool {
-	if u1.Name == u2.Name {
+	if u1.Name == u2.Name && u1.Pass == u2.Pass {
 		for _, s := range u1.Series {
 			if !ExistsID(u2.Series, s) {
 				return false
