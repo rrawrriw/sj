@@ -61,6 +61,7 @@ type (
 
 	ChangeUser struct {
 		Name   string
+		Pass   string
 		Series interface{}
 	}
 
@@ -304,6 +305,10 @@ func UpdateUser(db *mgo.Database, id bson.ObjectId, change ChangeUser) error {
 
 	if change.Name != "" {
 		set["Name"] = change.Name
+	}
+
+	if change.Pass != "" {
+		set["Password"] = change.Pass
 	}
 
 	switch change.Series.(type) {
