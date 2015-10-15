@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/kelseyhightower/envconfig"
-	"github.com/rrawrriw/angular-auth"
+	"github.com/rrawrriw/angular-sauth-handler"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -21,8 +21,11 @@ var (
 
 type (
 	Specs struct {
-		DBName string
-		DBURL  string
+		Host      string
+		Port      string
+		DBName    string
+		DBURL     string
+		PublicDir string
 	}
 
 	SuccessResponse struct {

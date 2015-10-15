@@ -15,7 +15,7 @@ import (
 	"gopkg.in/mgo.v2/bson"
 
 	"github.com/gin-gonic/gin"
-	"github.com/rrawrriw/angular-auth"
+	"github.com/rrawrriw/angular-sauth-handler"
 )
 
 func NewTestSession(user, token string, db *mgo.Database, t *testing.T) aauth.Session {
