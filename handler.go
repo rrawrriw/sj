@@ -22,10 +22,10 @@ var (
 type (
 	Specs struct {
 		Host      string
-		Port      string
-		DBName    string
-		DBURL     string
-		PublicDir string
+		Port      int
+		DBName    string `envconfig:"db_name"`
+		DBURL     string `envconfig:"db_url"`
+		PublicDir string `envconfig:"public_dir"`
 	}
 
 	SuccessResponse struct {
