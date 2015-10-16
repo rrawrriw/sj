@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	RequestError = errors.New("Request Error")
+	RequestError    = errors.New("Request Error")
+	UserExistsError = errors.New("User already exists")
 )
 
 type (
@@ -147,6 +148,67 @@ func ExportResource(s map[string]interface{}, key string) (Resource, error) {
 
 	return r, nil
 
+}
+
+func ParseJSONRequest(r *http.Request) (JSONRequest, error) {
+	buf := bytes.NewBuffer([]byte{})
+	_, err := buf.ReadFrom(r.Body)
+
+	req := JSONRequest{}
+	err = json.Unmarshal(buf.Bytes(), &req)
+	if err != nil {
+		return JSONRequest{}, err
+	}
+
+	return req, nil
+}
+
+func ParseUserDataRequest(req JSONRequest) (User, error) {
+	d, ok := req.Data.(map[string]interface{})
+	if !ok {
+		return User{}, errors.New("Wrong user request")
+	}
+
+	n, ok := d["Name"]
+	if !ok {
+		return User{}, NewMissingFieldError("Name")
+	}
+	p, ok := d["Password"]
+	if !ok {
+		return User{}, NewMissingFieldError("Password")
+	}
+
+	name, ok := n.(string)
+	if !ok {
+		return User{}, errors.New("Wrong name field")
+	}
+
+	pass, ok := p.(string)
+	if !ok {
+		return User{}, errors.New("Wrong password field")
+	}
+
+	user := User{
+		Name: name,
+		Pass: pass,
+	}
+
+	return user, nil
+
+}
+
+func ParseNewUserRequest(r *http.Request) (User, error) {
+	req, err := ParseJSONRequest(r)
+	if err != nil {
+		return User{}, err
+	}
+
+	user, err := ParseUserDataRequest(req)
+	if err != nil {
+		return User{}, err
+	}
+
+	return user, nil
 }
 
 func ParseNewSeriesRequest(c *gin.Context) (Series, error) {
@@ -295,6 +357,34 @@ func ReadSeriesOfUserHandler(c *gin.Context, app AppContext) error {
 
 	resp := NewSuccessResponse(sList)
 	c.JSON(http.StatusOK, resp)
+
+	return nil
+}
+
+func NewUserHandler(c *gin.Context, app AppContext) error {
+	user, err := ParseNewUserRequest(c.Request)
+	if err != nil {
+		return err
+	}
+
+	_, err = FindUser(app.DB(), user.Name)
+	if err == nil {
+		return UserExistsError
+	}
+
+	if err.Error() != "not found" {
+		return err
+	}
+
+	id, err := NewUser(app.DB(), user)
+	if err != nil {
+		return err
+	}
+
+	userID := IDData{
+		ID: id.Hex(),
+	}
+	c.JSON(http.StatusOK, NewSuccessResponse(userID))
 
 	return nil
 }

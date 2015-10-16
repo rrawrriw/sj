@@ -192,7 +192,6 @@ func EqualSeriesList(r1, r2 SuccessResponse) bool {
 
 	sL2, err := ParseSeriesList(r2)
 	if err != nil {
-		fmt.Println(err)
 		return false
 	}
 
@@ -206,6 +205,41 @@ func EqualSeriesList(r1, r2 SuccessResponse) bool {
 	}
 
 	return true
+}
+
+func EqualUserBasic(u1, u2 User) error {
+	if u1.Name != u2.Name {
+		m := fmt.Sprintf("Expect %v was %v", u1.Name, u2.Name)
+		return errors.New(m)
+	}
+
+	if u1.Pass != u2.Pass {
+		m := fmt.Sprintf("Expect %v was %v", u1.Pass, u2.Pass)
+		return errors.New(m)
+	}
+
+	return nil
+
+}
+
+func EqualFailResponse(r1 *bytes.Buffer, r2 FailResponse) error {
+	fr := FailResponse{}
+	err := json.Unmarshal(r1.Bytes(), &fr)
+	if err != nil {
+		return err
+	}
+
+	if fr.Status != r2.Status {
+		m := fmt.Sprintf("Expect fail response")
+		return errors.New(m)
+	}
+
+	if fr.Err != r2.Err {
+		m := fmt.Sprintf("Expect %v was %v", r2.Err, fr.Err)
+		return errors.New(m)
+	}
+
+	return nil
 }
 
 func ExistsIDField(r1, r2 SuccessResponse) bool {
@@ -348,5 +382,111 @@ func Test_ParseNewSeriesRequest_FailMissingFields(t *testing.T) {
 	expect := NewMissingFieldError("Image")
 	if err.Error() != expect.Error() {
 		t.Fatal("Expect", expect, "was", err)
+	}
+}
+
+func Test_POST_NewUser_OK(t *testing.T) {
+	app := NewTestApp(t)
+	db := app.DB()
+	defer CleanTestDB(app.MgoSession, db, t)
+
+	handler := gin.New()
+	newUserBody := `
+	{
+		"Data": {
+			"Name": "machine_XXX",
+			"Password": "love!"
+		}
+	}
+	`
+	req := TestRequest{
+		Body:    newUserBody,
+		Header:  http.Header{},
+		Handler: handler,
+	}
+
+	h := NewAppHandler(NewUserHandler, app)
+	handler.POST("/", h)
+
+	resp := req.Send("POST", "/")
+
+	expectResult := NewSuccessResponse(nil)
+	r := EqualSuccessResponse(expectResult, resp.Body, ExistsIDField)
+	if !r {
+		t.Fatal("Expect success response with id field was", resp.Body)
+	}
+
+}
+
+func Test_POST_NewUser_FailUserExists(t *testing.T) {
+	app := NewTestApp(t)
+	db := app.DB()
+	defer CleanTestDB(app.MgoSession, db, t)
+
+	user := User{
+		Name: "machine_XXX",
+		Pass: "love!",
+	}
+	_, err := NewUser(db, user)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler := gin.New()
+	newUserBody := `
+	{
+		"Data": {
+			"Name": "machine_XXX",
+			"Password": "love!"
+		}
+	}
+	`
+	req := TestRequest{
+		Body:    newUserBody,
+		Header:  http.Header{},
+		Handler: handler,
+	}
+
+	h := NewAppHandler(NewUserHandler, app)
+	handler.POST("/", h)
+
+	resp := req.Send("POST", "/")
+
+	expectResp := NewFailResponse(UserExistsError)
+	err = EqualFailResponse(resp.Body, expectResp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
+
+func Test_ParseNewUserRequest_OK(t *testing.T) {
+	data := `
+	{
+		"Data": {
+			"Name": "A",
+			"Password": "a"
+		}
+	}`
+
+	body := bytes.NewReader([]byte(data))
+	req, err := http.NewRequest("POST", "/", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectUser := User{
+		Name: "A",
+		Pass: "a",
+	}
+
+	user, err := ParseNewUserRequest(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = EqualUserBasic(expectUser, user)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
