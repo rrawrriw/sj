@@ -359,6 +359,44 @@ func Test_POST_Series_OK(t *testing.T) {
 	if !r {
 		t.Fatal("Expect", expectResult, "was", resp.Body)
 	}
+
+}
+
+func Test_DELETE_Series_OK(t *testing.T) {
+	app := NewTestApp(t)
+	db := app.DB()
+	defer CleanTestDB(app.MgoSession, db, t)
+
+	_, session, sList := NewTestDBEnv(t, db)
+
+	auth := aauth.AngularAuth(db, TestSessionsColl)
+
+	handler := gin.New()
+	req := TestRequest{
+		Body:    "",
+		Header:  http.Header{},
+		Handler: handler,
+	}
+
+	h := NewAppHandler(RemoveSeriesHandler, app)
+	handler.DELETE("/:id", auth, h)
+
+	seriesID := sList[0].ID.Hex()
+	resp := req.SendWithToken("DELETE", "/"+seriesID, session.Token)
+
+	if resp.Code != http.StatusOK {
+		t.Fatal("Expect", http.StatusOK, "was", resp.Code)
+	}
+
+	respID := IDData{
+		ID: seriesID,
+	}
+	expectResp := NewSuccessResponse(respID)
+
+	r := EqualSuccessResponse(expectResp, resp.Body, ExistsIDField)
+	if !r {
+		t.Fatal("Expect", expectResp, "was", resp)
+	}
 }
 
 func Test_ParseNewSeriesRequest_FailMissingFields(t *testing.T) {

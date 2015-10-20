@@ -310,6 +310,16 @@ func EmptySeries(s Series) bool {
 	return false
 }
 
+func ContainsID(ids []bson.ObjectId, id bson.ObjectId) bool {
+	for _, e := range ids {
+		if e == id {
+			return true
+		}
+	}
+
+	return false
+}
+
 func NewSeriesHandler(c *gin.Context, app AppContext) error {
 	series, err := ParseNewSeriesRequest(c)
 	if err != nil {
@@ -320,7 +330,27 @@ func NewSeriesHandler(c *gin.Context, app AppContext) error {
 		return errors.New("Wrong request")
 	}
 
-	id, err := NewSeries(app.DB(), series)
+	db := app.DB()
+	defer db.Session.Close()
+	id, err := NewSeries(db, series)
+	if err != nil {
+		return err
+	}
+
+	session, err := aauth.ReadSession(c)
+	if err != nil {
+		return err
+	}
+
+	ids := []bson.ObjectId{
+		id,
+	}
+	change := ChangeUser{
+		Series: AppendIDItems(ids),
+	}
+
+	uID := bson.ObjectIdHex(session.UserID)
+	err = UpdateUser(db, uID, change)
 	if err != nil {
 		return err
 	}
@@ -330,6 +360,67 @@ func NewSeriesHandler(c *gin.Context, app AppContext) error {
 	}
 	c.JSON(http.StatusOK, NewSuccessResponse(data))
 	return nil
+}
+
+func RemoveSeriesHandler(c *gin.Context, app AppContext) error {
+
+	seriesIDParam := c.Params.ByName("id")
+	if seriesIDParam == "" {
+		return errors.New("Missing id parameter")
+	}
+
+	seriesID := bson.ObjectIdHex(seriesIDParam)
+
+	session, err := aauth.ReadSession(c)
+	if err != nil {
+		return err
+	}
+
+	db := app.DB()
+	defer db.Session.Close()
+	userID := bson.ObjectIdHex(session.UserID)
+	user, err := ReadUser(db, userID)
+	if err != nil {
+		return err
+	}
+
+	if !ContainsID(user.Series, seriesID) {
+		m := fmt.Sprintf("Cannot find %v", seriesID)
+		return errors.New(m)
+	}
+
+	// todo(tochti): Remove all episodes
+
+	ids := []bson.ObjectId{
+		seriesID,
+	}
+	change := ChangeUser{
+		Series: RemoveIDItems(ids),
+	}
+	err = UpdateUser(db, userID, change)
+	if err != nil {
+		return err
+	}
+
+	err = RemoveSeries(db, seriesID)
+	if err != nil {
+		// If it not possible to remove the series reset the user series link
+		change := ChangeUser{
+			Series: AppendIDItems(ids),
+		}
+		UpdateUser(db, userID, change)
+
+		return err
+	}
+
+	respID := IDData{
+		ID: seriesIDParam,
+	}
+	resp := NewSuccessResponse(respID)
+	c.JSON(http.StatusOK, resp)
+
+	return nil
+
 }
 
 func ReadSeriesOfUserHandler(c *gin.Context, app AppContext) error {
@@ -349,6 +440,7 @@ func ReadSeriesOfUserHandler(c *gin.Context, app AppContext) error {
 	}
 
 	db := app.DB()
+	defer db.Session.Close()
 	sList, err := ReadSeriesOfUser(db, bson.ObjectIdHex(s.UserID))
 
 	if err != nil {
@@ -367,7 +459,10 @@ func NewUserHandler(c *gin.Context, app AppContext) error {
 		return err
 	}
 
-	_, err = FindUser(app.DB(), user.Name)
+	db := app.DB()
+	defer db.Session.Close()
+
+	_, err = FindUser(db, user.Name)
 	if err == nil {
 		return UserExistsError
 	}
@@ -376,7 +471,7 @@ func NewUserHandler(c *gin.Context, app AppContext) error {
 		return err
 	}
 
-	id, err := NewUser(app.DB(), user)
+	id, err := NewUser(db, user)
 	if err != nil {
 		return err
 	}
