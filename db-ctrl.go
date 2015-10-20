@@ -4,6 +4,8 @@ import (
 	"errors"
 	"sort"
 
+	"github.com/rrawrriw/angular-sauth-handler"
+
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -241,9 +243,14 @@ func NewUser(db *mgo.Database, user User) (bson.ObjectId, error) {
 	coll := db.C(UserColl)
 
 	id := bson.NewObjectId()
-	user.Id = id
+	newUser := User{
+		Id:     id,
+		Name:   user.Name,
+		Pass:   aauth.NewSha512Password(user.Pass),
+		Series: user.Series,
+	}
 
-	err := coll.Insert(user)
+	err := coll.Insert(newUser)
 	if err != nil {
 		return bson.ObjectId(""), nil
 	}
@@ -308,7 +315,8 @@ func UpdateUser(db *mgo.Database, id bson.ObjectId, change ChangeUser) error {
 	}
 
 	if change.Pass != "" {
-		set["Password"] = change.Pass
+		passHash := aauth.NewSha512Password(change.Pass)
+		set["Password"] = passHash
 	}
 
 	switch change.Series.(type) {

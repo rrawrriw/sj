@@ -3,6 +3,8 @@ package sj
 import (
 	"testing"
 
+	"github.com/rrawrriw/angular-sauth-handler"
+
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -49,8 +51,9 @@ func ExistsID(ids []bson.ObjectId, id bson.ObjectId) bool {
 	return false
 }
 
+// Expect user and retuned user
 func EqualUser(u1 User, u2 User) bool {
-	if u1.Name == u2.Name && u1.Pass == u2.Pass {
+	if u1.Name == u2.Name && aauth.NewSha512Password(u1.Pass) == u2.Pass {
 		for _, s := range u1.Series {
 			if !ExistsID(u2.Series, s) {
 				return false
